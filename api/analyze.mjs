@@ -78,6 +78,14 @@ function normalizedIssueText(suggestion) {
     .toLowerCase();
 }
 
+function isTomatoPlant(suggestion) {
+  const text = [suggestion?.name, ...(suggestion?.details?.common_names || [])]
+    .filter((value) => typeof value === 'string')
+    .join(' ')
+    .toLowerCase();
+  return text.includes('solanum lycopersicum') || text.includes('tomato') || text.includes('طماطم');
+}
+
 function tomatoIssueFrom(suggestion) {
   const text = normalizedIssueText(suggestion);
   return TOMATO_ISSUES.find((issue) => issue.keywords.some((keyword) => text.includes(keyword)));
@@ -148,14 +156,15 @@ async function analyzePlantImage(image) {
   const healthy = result.is_healthy?.binary === true;
   const diseaseDetails = diseaseSuggestion?.details || {};
   const tomatoIssue = tomatoIssueFrom(diseaseSuggestion);
+  const tomatoNeedsReview = isTomatoPlant(plantSuggestion) && !healthy && !tomatoIssue;
 
   return {
     plantName: arabicPlantName(plantSuggestion),
     health: healthy ? 'healthy' : 'affected',
     healthLabel: healthy ? 'سليم' : 'مصاب أو متأثر',
-    possibleIssue: tomatoIssue?.name || diseaseSuggestion?.name || (healthy ? 'لم تظهر مؤشرات مرض واضحة' : 'مؤشرات تحتاج إلى فحص متخصص'),
-    summary: tomatoIssue?.summary || diseaseDetails.description || (healthy ? 'لم ترصد الخدمة مؤشرات واضحة على مشكلة صحية في الصورة.' : 'رصدت الخدمة مؤشرات صحية تحتاج إلى مراجعة.'),
-    recommendations: tomatoIssue?.recommendations || recommendationsFrom(diseaseDetails.treatment),
+    possibleIssue: tomatoIssue?.name || diseaseSuggestion?.name || (tomatoNeedsReview ? 'مؤشرات تحتاج إلى صورة أوضح' : (healthy ? 'لم تظهر مؤشرات مرض واضحة' : 'مؤشرات تحتاج إلى فحص متخصص')),
+    summary: tomatoIssue?.summary || diseaseDetails.description || (tomatoNeedsReview ? 'تعرّفت الخدمة على نبات طماطم، لكن الصورة الحالية لا تكفي لتحديد مرض أو آفة بعينها.' : (healthy ? 'لم ترصد الخدمة مؤشرات واضحة على مشكلة صحية في الصورة.' : 'رصدت الخدمة مؤشرات صحية تحتاج إلى مراجعة.')),
+    recommendations: tomatoIssue?.recommendations || (tomatoNeedsReview ? ['التقط صورة قريبة وواضحة للورقة أو الثمرة المصابة.', 'صوّر ظهر الورقة والسيقان إن وُجدت أعراض.', 'افحص النبات بحثًا عن حشرات صغيرة أو أنفاق أو بقع.', 'استشر متخصصًا قبل استخدام أي مبيد.'] : recommendationsFrom(diseaseDetails.treatment)),
     isMock: false,
   };
 }
@@ -190,4 +199,4 @@ export default async function handler(request, response) {
   }
 }
 
-export { arabicPlantName, tomatoIssueFrom };
+export { arabicPlantName, isTomatoPlant, tomatoIssueFrom };
